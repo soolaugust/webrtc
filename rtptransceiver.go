@@ -17,7 +17,6 @@ type RTPTransceiver struct {
 	receiver  atomic.Value // *RTPReceiver
 	direction atomic.Value // RTPTransceiverDirection
 
-	stoping bool
 	stopped bool
 	kind    RTPCodecType
 }
@@ -85,7 +84,6 @@ func (t *RTPTransceiver) Stop() error {
 	}
 
 	t.setDirection(RTPTransceiverDirectionInactive)
-	t.stoping = true
 	return nil
 }
 

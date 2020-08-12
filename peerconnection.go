@@ -313,7 +313,7 @@ func (pc *PeerConnection) negotiationNeededOp() {
 	pc.negotiationNeeded = true
 	// Step 2.7
 	if pc.onNegotiationNeededHandler != nil {
-		go pc.onNegotiationNeededHandler()
+		pc.onNegotiationNeededHandler()
 	}
 }
 
@@ -322,7 +322,7 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 	// Skip 1, 2 steps
 	// Step 3
 	localDesc := pc.currentLocalDescription
-	remotDesc := pc.currentRemoteDescription
+	remoteDesc := pc.currentRemoteDescription
 
 	if localDesc == nil {
 		return true
@@ -332,36 +332,31 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 		return true
 	}
 
-	if len(pc.sctpTransport.dataChannels) != 0 && len(localDesc.parsed.MediaDescriptions) == 0 {
-		return true
-	}
-
-	localMedia := make(map[string]*sdp.MediaDescription)
-	for _, m := range localDesc.parsed.MediaDescriptions {
-		if mid, ok := m.Attribute(sdp.AttrKeyMID); ok {
-			localMedia[mid] = m
+	if len(pc.sctpTransport.dataChannels) != 0 {
+		var haveChannel bool
+		for _, d := range localDesc.parsed.MediaDescriptions {
+			if d.MediaName.Media == mediaSectionApplication {
+				haveChannel = true
+				break
+			}
 		}
-	}
-
-	remotMedia := make(map[string]*sdp.MediaDescription)
-	for _, m := range remotDesc.parsed.MediaDescriptions {
-		if mid, ok := m.Attribute(sdp.AttrKeyMID); ok {
-			remotMedia[mid] = m
+		if !haveChannel {
+			return true
 		}
 	}
 
 	for _, t := range pc.GetTransceivers() {
 		// https://www.w3.org/TR/webrtc/#dfn-update-the-negotiation-needed-flag
 		// Step 5.1
-		if t.stoping && !t.stopped {
-			return true
-		}
-		m, ok := localMedia[t.Mid()]
+		// if t.stoping && !t.stopped {
+		// 	return true
+		// }
+		m := getByAttribute(sdp.AttrKeyMID, t.Mid(), localDesc)
 		// Step 5.2
-		if !t.stopped && !ok {
+		if !t.stopped && m == nil {
 			return true
 		}
-		if !t.stopped && ok {
+		if !t.stopped && m != nil {
 			// Step 5.3.1
 			if t.Direction() == RTPTransceiverDirectionSendrecv || t.Direction() == RTPTransceiverDirectionSendonly {
 				descMsid, okMsid := m.Attribute(sdp.AttrKeyMsid)
@@ -372,15 +367,12 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 			switch localDesc.Type {
 			case SDPTypeOffer:
 				// Step 5.3.2
-				rm, ok := remotMedia[t.Mid()]
-				if !ok {
+				rm := getByAttribute(sdp.AttrKeyMID, t.Mid(), remoteDesc)
+				if rm == nil {
 					return true
 				}
 
-				_, localDirOk := m.Attribute(t.Direction().String())
-				_, remotDirOk := rm.Attribute(t.Direction().Revers().String())
-
-				if !localDirOk && !remotDirOk {
+				if getPeerDirection(m) != t.Direction() && getPeerDirection(rm) != t.Direction().Revers() {
 					return true
 				}
 			case SDPTypeAnswer:
@@ -392,10 +384,10 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 		}
 		// Step 5.4
 		if t.stopped && t.Mid() != "" {
-			if _, ok := localMedia[t.Mid()]; !ok {
+			if m := getByAttribute(sdp.AttrKeyMID, t.Mid(), localDesc); m == nil {
 				return true
 			}
-			if _, ok := remotMedia[t.Mid()]; !ok {
+			if m := getByAttribute(sdp.AttrKeyMID, t.Mid(), remoteDesc); m == nil {
 				return true
 			}
 		}

@@ -629,3 +629,12 @@ func getExtMapByURI(exts map[SDPSectionType][]sdp.ExtMap, uri string) *sdp.ExtMa
 	}
 	return nil
 }
+
+func getByAttribute(attr string, value string, desc *SessionDescription) *sdp.MediaDescription {
+	for _, m := range desc.parsed.MediaDescriptions {
+		if mid, ok := m.Attribute(attr); ok && mid == value {
+			return m
+		}
+	}
+	return nil
+}
