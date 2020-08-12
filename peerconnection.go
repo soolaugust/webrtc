@@ -46,9 +46,9 @@ type PeerConnection struct {
 
 	idpLoginURL *string
 
-	isClosed                                *atomicBool
-	negotiationNeeded                       bool
-	updateNegotiationNeededFlagOnEmptyChain bool
+	isClosed               *atomicBool
+	negotiationNeeded      bool
+	negotiationNeededState negotiationNeededState
 
 	lastOffer  string
 	lastAnswer string
@@ -102,29 +102,20 @@ func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection,
 			Certificates:         []Certificate{},
 			ICECandidatePoolSize: 0,
 		},
-		ops:                newOperations(),
-		isClosed:           &atomicBool{},
-		negotiationNeeded:  false,
-		lastOffer:          "",
-		lastAnswer:         "",
-		greaterMid:         -1,
-		signalingState:     SignalingStateStable,
-		iceConnectionState: ICEConnectionStateNew,
-		connectionState:    PeerConnectionStateNew,
+		ops:                    newOperations(),
+		isClosed:               &atomicBool{},
+		negotiationNeeded:      false,
+		negotiationNeededState: negotiationNeededStateEmpty,
+		lastOffer:              "",
+		lastAnswer:             "",
+		greaterMid:             -1,
+		signalingState:         SignalingStateStable,
+		iceConnectionState:     ICEConnectionStateNew,
+		connectionState:        PeerConnectionStateNew,
 
 		api: api,
 		log: api.settingEngine.LoggerFactory.NewLogger("pc"),
 	}
-
-	pc.ops.OnBusy(func() {
-		if pc.isClosed.get() {
-			return
-		}
-		if pc.updateNegotiationNeededFlagOnEmptyChain {
-			pc.updateNegotiationNeededFlagOnEmptyChain = false
-			pc.onNegotiationNeeded()
-		}
-	})
 
 	var err error
 	if err = pc.initConfiguration(configuration); err != nil {
@@ -263,48 +254,67 @@ func (pc *PeerConnection) OnNegotiationNeeded(f func()) {
 }
 
 func (pc *PeerConnection) onNegotiationNeeded() {
-	// It is mix
-	// https://www.w3.org/TR/webrtc/#updating-the-negotiation-needed-flag
 	// https://w3c.github.io/webrtc-pc/#updating-the-negotiation-needed-flag
-	// Step 1
-	if !pc.ops.IsEmpty() {
-		pc.updateNegotiationNeededFlagOnEmptyChain = true
+	// non-canon step 1
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	if pc.negotiationNeededState == negotiationNeededStateRun {
+		pc.negotiationNeededState = negotiationNeededStateQueue
+		return
+	}
+	if pc.negotiationNeededState == negotiationNeededStateQueue {
 		return
 	}
 
-	pc.ops.Enqueue(func() {
-		// Step 2.1
-		if pc.isClosed.get() {
-			return
-		}
-		// Step 2.2
-		if !pc.ops.IsEmpty() {
-			pc.updateNegotiationNeededFlagOnEmptyChain = true
-			return
-		}
-		// Step 2.3
-		if pc.signalingState != SignalingStateStable {
-			return
-		}
+	pc.negotiationNeededState = negotiationNeededStateRun
 
-		// Step 2.4
-		if !pc.checkNegotiationNeeded() {
-			pc.negotiationNeeded = false
-			return
-		}
+	pc.ops.Enqueue(pc.negotiationNeededOp)
+}
 
-		// Step 2.5
-		if pc.negotiationNeeded {
-			return
-		}
+func (pc *PeerConnection) negotiationNeededOp() {
+	// https://www.w3.org/TR/webrtc/#updating-the-negotiation-needed-flag
+	// Step 2.1
+	if pc.isClosed.get() {
+		return
+	}
+	// non-canon step 2.2
+	if !pc.ops.IsEmpty() {
+		pc.ops.Enqueue(pc.negotiationNeededOp)
+		return
+	}
 
-		// Step 2.6
-		pc.negotiationNeeded = true
-		// Step 2.7
-		if pc.onNegotiationNeededHandler != nil {
-			go pc.onNegotiationNeededHandler()
+	// non-canon, run again if there was a request
+	defer func() {
+		pc.mu.Lock()
+		if pc.negotiationNeededState == negotiationNeededStateQueue {
+			defer pc.onNegotiationNeeded()
 		}
-	})
+		pc.negotiationNeededState = negotiationNeededStateEmpty
+		pc.mu.Unlock()
+	}()
+
+	// Step 2.3
+	if pc.signalingState != SignalingStateStable {
+		return
+	}
+
+	// Step 2.4
+	if !pc.checkNegotiationNeeded() {
+		pc.negotiationNeeded = false
+		return
+	}
+
+	// Step 2.5
+	if pc.negotiationNeeded {
+		return
+	}
+
+	// Step 2.6
+	pc.negotiationNeeded = true
+	// Step 2.7
+	if pc.onNegotiationNeededHandler != nil {
+		go pc.onNegotiationNeededHandler()
+	}
 }
 
 func (pc *PeerConnection) checkNegotiationNeeded() bool {
