@@ -1452,6 +1452,8 @@ func (pc *PeerConnection) AddTrack(track *Track) (*RTPSender, error) {
 		if err := transceiver.setSendingTrack(track); err != nil {
 			return nil, err
 		}
+		pc.onNegotiationNeeded()
+
 		return sender, nil
 	}
 
