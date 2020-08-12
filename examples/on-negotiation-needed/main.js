@@ -1,16 +1,20 @@
 var pc = new RTCPeerConnection({iceServers: [{urls: ["stun:stun.l.google.com:19302"]}]})
+var channels = []
 
-const MessageTypeICE         = "ice-candidate"
-const MessageTypeOffer       = "offer"
-const MessageTypeAnswer      = "answer"
+const MessageTypeICE           = "ice-candidate"
+const MessageTypeOffer         = "offer"
+const MessageTypeAnswer        = "answer"
 // It is only from server
-const MessageTypeNewTrack    = "new-track"
-const MessageTypeRemoveTrack = "remove-track"
+const MessageTypeNewTrack      = "add-track"
+const MessageTypeRemoveTrack   = "remove-track"
+const MessageTypeAddChannel    = "add-channel"
+const MessageTypeRemoveChannel = "remove-channel"
 
 function serverSay() {
 	fetch("/server-say")
 	.then(res => res.json())
 	.then(async msg => {
+		console.log("received", msg)
 		switch (msg.type) {
 			case MessageTypeICE:
 				pc.addIceCandidate(msg.candidate)
@@ -40,6 +44,7 @@ function serverSay() {
 serverSay()
 
 function clientSay(msg) {
+	console.log("sent", msg)
 	var json = JSON.stringify(msg)
 	fetch("/client-say",
 	{
@@ -71,6 +76,16 @@ pc.ontrack = e => {
 	el.autoplay = true
 	el.controls = true
 	document.getElementById("removeVideo").appendChild(el)
+}
+
+pc.ondatachannel = e => {
+	var el = document.createElement("div")
+	el.innerText = e.channel.label
+	document.getElementById("channels").appendChild(el)
+
+	e.channel.onclose = e => {
+		el.remove()
+	}
 }
 
 document.getElementById("AddRemoteTrack").onclick = e => {
@@ -108,4 +123,31 @@ document.getElementById("RemoveLocalTrack").onclick = e => {
 	var sender = senders[0]
 	sender.el.remove()
 	pc.removeTrack(sender)
+}
+
+document.getElementById("AddLocalChannel").onclick = e => {
+	var channel = pc.createDataChannel("channel-local"+Math.random().toString(16))
+	var el = document.createElement("div")
+	el.innerText = channel.label
+	document.getElementById("channels").appendChild(el)
+
+	channel.onclose = e => {
+		el.remove()
+	}
+	channels.push(channel)
+}
+
+document.getElementById("RemoveLocalChannel").onclick = e => {
+	if (channels.length == 0) {
+		return
+	}
+	channels.pop().close()
+}
+
+document.getElementById("AddRemoteChannel").onclick = e => {
+	clientSay({type: MessageTypeRemoveChannel})
+}
+
+document.getElementById("RemoveRemoteChannel").onclick = e => {
+	clientSay({type: MessageTypeAddChannel})
 }

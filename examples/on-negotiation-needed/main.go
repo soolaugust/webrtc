@@ -13,8 +13,9 @@ import (
 	"github.com/pion/webrtc/v3/pkg/media/ivfreader"
 )
 
-var pc *webrtc.PeerConnection     // nolint
-var signal = make(chan []byte, 1) // nolint
+var pc *webrtc.PeerConnection      // nolint
+var signal = make(chan []byte, 1)  // nolint
+var channels []*webrtc.DataChannel // nolint
 
 type message struct {
 	Type        string                    `json:"type"`
@@ -24,11 +25,13 @@ type message struct {
 
 // Type message
 const (
-	MessageTypeICE         = "ice-candidate"
-	MessageTypeOffer       = "offer"
-	MessageTypeAnswer      = "answer"
-	MessageTypeNewTrack    = "new-track"
-	MessageTypeRemoveTrack = "remove-track"
+	MessageTypeICE           = "ice-candidate"
+	MessageTypeOffer         = "offer"
+	MessageTypeAnswer        = "answer"
+	MessageTypeNewTrack      = "add-track"
+	MessageTypeRemoveTrack   = "remove-track"
+	MessageTypeAddChannel    = "add-channel"
+	MessageTypeRemoveChannel = "remove-channel"
 )
 
 func check(err error) {
@@ -106,6 +109,18 @@ func clientSay(w http.ResponseWriter, r *http.Request) {
 		check(err)
 
 		go writeVideoToTrack(track)
+	case MessageTypeAddChannel:
+		channel, err := pc.CreateDataChannel(fmt.Sprintf("channel-server-%d", rand.Uint32()), nil)
+		check(err)
+		channels = append(channels, channel)
+	case MessageTypeRemoveChannel:
+		if len(channels) == 0 {
+			return
+		}
+		// pop first channel
+		var channel *webrtc.DataChannel
+		channel, channels = channels[0], channels[1:]
+		check(channel.Close())
 	default:
 		fmt.Printf("Unknown message type: %s ", msg.Type)
 	}
