@@ -384,10 +384,7 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 		}
 		// Step 5.4
 		if t.stopped && t.Mid() != "" {
-			if m := getByAttribute(sdp.AttrKeyMID, t.Mid(), localDesc); m == nil {
-				return true
-			}
-			if m := getByAttribute(sdp.AttrKeyMID, t.Mid(), remoteDesc); m == nil {
+			if getByAttribute(sdp.AttrKeyMID, t.Mid(), localDesc) != nil || getByAttribute(sdp.AttrKeyMID, t.Mid(), remoteDesc) != nil {
 				return true
 			}
 		}
