@@ -342,10 +342,15 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 
 	for _, t := range pc.GetTransceivers() {
 		// https://www.w3.org/TR/webrtc/#dfn-update-the-negotiation-needed-flag
+		// Step 5.1
 		if t.stoping && !t.stopped {
 			return true
 		}
 		m, ok := localMedia[t.Mid()]
+		// Step 5.2
+		if !t.stopped && !ok {
+			return true
+		}
 		if !t.stopped && ok {
 			// Step 5.3.1
 			if t.Direction() == RTPTransceiverDirectionSendrecv || t.Direction() == RTPTransceiverDirectionSendonly {
