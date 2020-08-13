@@ -76,6 +76,9 @@ pc.ontrack = e => {
 	el.autoplay = true
 	el.controls = true
 	document.getElementById("removeVideo").appendChild(el)
+	e.streams[0].onremovetrack = e => {
+		el.remove()
+	}
 }
 
 pc.ondatachannel = e => {
