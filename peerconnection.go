@@ -332,17 +332,8 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 		return true
 	}
 
-	if len(pc.sctpTransport.dataChannels) != 0 {
-		var haveChannel bool
-		for _, d := range localDesc.parsed.MediaDescriptions {
-			if d.MediaName.Media == mediaSectionApplication {
-				haveChannel = true
-				break
-			}
-		}
-		if !haveChannel {
-			return true
-		}
+	if len(pc.sctpTransport.dataChannels) != 0 && haveDataChannel(localDesc) == nil {
+		return true
 	}
 
 	for _, t := range pc.GetTransceivers() {

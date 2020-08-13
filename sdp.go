@@ -638,3 +638,13 @@ func getByAttribute(attr string, value string, desc *SessionDescription) *sdp.Me
 	}
 	return nil
 }
+
+// haveDataChannel return MediaDescription with MediaName equal application
+func haveDataChannel(desc *SessionDescription) *sdp.MediaDescription {
+	for _, d := range desc.parsed.MediaDescriptions {
+		if d.MediaName.Media == mediaSectionApplication {
+			return d
+		}
+	}
+	return nil
+}
