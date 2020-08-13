@@ -759,7 +759,7 @@ func TestAddDataChannelDuringRenegotation(t *testing.T) {
 	applicationMediaSectionCount := 0
 	for _, d := range offer.parsed.MediaDescriptions {
 		if d.MediaName.Media == mediaSectionApplication {
-			applicationMediaSectionCount += 1
+			applicationMediaSectionCount++
 		}
 	}
 	assert.Equal(t, applicationMediaSectionCount, 1)
