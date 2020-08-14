@@ -300,7 +300,7 @@ func TestPeerConnection_EventHandlers_Go(t *testing.T) {
 	assert.NotPanics(t, func() { pc.onTrack(nil, nil) })
 	assert.NotPanics(t, func() { pc.onICEConnectionStateChange(ice.ConnectionStateNew) })
 
-	pc.OnTrack(func(t *Track, r *RTPReceiver) {
+	pc.OnTrack(func(t *Track, s []*Stream) {
 		close(onTrackCalled)
 	})
 
@@ -322,7 +322,7 @@ func TestPeerConnection_EventHandlers_Go(t *testing.T) {
 	assert.NotPanics(t, func() { go pc.onDataChannelHandler(nil) })
 
 	// Verify that the set handlers are called
-	assert.NotPanics(t, func() { pc.onTrack(&Track{}, &RTPReceiver{}) })
+	assert.NotPanics(t, func() { pc.onTrack(&Track{}, []*Stream{{}}) })
 	assert.NotPanics(t, func() { pc.onICEConnectionStateChange(ice.ConnectionStateNew) })
 	assert.NotPanics(t, func() { go pc.onDataChannelHandler(&DataChannel{api: api}) })
 
