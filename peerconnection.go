@@ -294,7 +294,7 @@ func (pc *PeerConnection) negotiationNeededOp() {
 	}()
 
 	// Step 2.3
-	if pc.signalingState != SignalingStateStable {
+	if pc.SignalingState() != SignalingStateStable {
 		return
 	}
 
@@ -332,7 +332,11 @@ func (pc *PeerConnection) checkNegotiationNeeded() bool {
 		return true
 	}
 
-	if len(pc.sctpTransport.dataChannels) != 0 && haveDataChannel(localDesc) == nil {
+	pc.sctpTransport.lock.Lock()
+	lenDataChannel := len(pc.sctpTransport.dataChannels)
+	pc.sctpTransport.lock.Unlock()
+
+	if lenDataChannel != 0 && haveDataChannel(localDesc) == nil {
 		return true
 	}
 
@@ -746,7 +750,7 @@ func (pc *PeerConnection) setDescription(sd *SessionDescription, op stateChangeO
 		pc.mu.Lock()
 		defer pc.mu.Unlock()
 
-		cur := pc.signalingState
+		cur := pc.SignalingState()
 		setLocal := stateChangeOpSetLocal
 		setRemote := stateChangeOpSetRemote
 		newSDPDoesNotMatchOffer := &rtcerr.InvalidModificationError{Err: fmt.Errorf("new sdp does not match previous offer")}
@@ -836,8 +840,8 @@ func (pc *PeerConnection) setDescription(sd *SessionDescription, op stateChangeO
 	}()
 
 	if err == nil {
-		pc.signalingState = nextState
-		if pc.signalingState == SignalingStateStable {
+		pc.signalingState.Set(nextState)
+		if pc.signalingState.Get() == SignalingStateStable {
 			pc.negotiationNeeded = false
 			pc.onNegotiationNeeded()
 		}
@@ -1711,7 +1715,7 @@ func (pc *PeerConnection) Close() error {
 	pc.isClosed.set(true)
 
 	// https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-close (step #4)
-	pc.signalingState = SignalingStateClosed
+	pc.signalingState.Set(SignalingStateClosed)
 
 	// Try closing everything and collect the errors
 	// Shutdown strategy:
@@ -1824,7 +1828,7 @@ func (pc *PeerConnection) PendingRemoteDescription() *SessionDescription {
 // SignalingState attribute returns the signaling state of the
 // PeerConnection instance.
 func (pc *PeerConnection) SignalingState() SignalingState {
-	return pc.signalingState
+	return pc.signalingState.Get()
 }
 
 // ICEGatheringState attribute returns the ICE gathering state of the
